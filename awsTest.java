@@ -331,7 +331,8 @@ public class awsTest {
 		DescribeImagesRequest request = new DescribeImagesRequest();
 		ProfileCredentialsProvider credentialsProvider = new ProfileCredentialsProvider();
 
-		request.getFilters().add(new Filter().withName("name").withValues("htcondor-slave-image"));
+		//만들었던 AMI를 볼수 있도록 withValues의 인자를 수정
+		request.getFilters().add(new Filter().withName("name").withValues("aws-htcondor-slave"));
 		request.setRequestCredentialsProvider(credentialsProvider);
 
 		DescribeImagesResult results = ec2.describeImages(request);
