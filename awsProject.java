@@ -13,7 +13,6 @@ import java.util.concurrent.TimeUnit;
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
-import com.amazonaws.services.config.model.SsmControls;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import com.amazonaws.services.ec2.model.DescribeAvailabilityZonesResult;
@@ -41,7 +40,7 @@ import com.amazonaws.services.simplesystemsmanagement.AWSSimpleSystemsManagement
 import com.amazonaws.services.simplesystemsmanagement.model.*;
 
 
-public class awsTest {
+public class awsProject {
 
 	static AmazonEC2      ec2;
 
