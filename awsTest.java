@@ -7,11 +7,13 @@ package aws;
  * using AWS Java SDK Library
  *
  */
-import java.util.Iterator;
-import java.util.Scanner;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
+import com.amazonaws.services.config.model.SsmControls;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import com.amazonaws.services.ec2.model.DescribeAvailabilityZonesResult;
@@ -34,6 +36,10 @@ import com.amazonaws.services.ec2.model.DescribeImagesRequest;
 import com.amazonaws.services.ec2.model.DescribeImagesResult;
 import com.amazonaws.services.ec2.model.Image;
 import com.amazonaws.services.ec2.model.Filter;
+import com.amazonaws.services.simplesystemsmanagement.AWSSimpleSystemsManagement;
+import com.amazonaws.services.simplesystemsmanagement.AWSSimpleSystemsManagementClientBuilder;
+import com.amazonaws.services.simplesystemsmanagement.model.*;
+
 
 public class awsTest {
 
@@ -76,7 +82,7 @@ public class awsTest {
 			System.out.println("  3. start instance               4. available regions      ");
 			System.out.println("  5. stop instance                6. create instance        ");
 			System.out.println("  7. reboot instance              8. list images            ");
-			System.out.println("                                 99. quit                   ");
+			System.out.println("  9. condor status                99. quit                  ");
 			System.out.println("------------------------------------------------------------");
 
 			System.out.print("Enter an integer: ");
@@ -143,6 +149,10 @@ public class awsTest {
 
 				case 8:
 					listImages();
+					break;
+
+				case 9:
+					condor_status();
 					break;
 
 				case 99:
@@ -342,5 +352,62 @@ public class awsTest {
 					images.getImageId(), images.getName(), images.getOwnerId());
 		}
 
+	}
+	public static void runShellScrpit(String instanceIds,String command){
+		Map<String, List<String>> params = new HashMap<String, List<String>>(){{
+			put("commands", new ArrayList<String>(){{ add(command); }});
+		}};
+		int timeoutInSecs = 5;
+		//명령어를 실행할 대상 지정, 여럿도 가능(현재는 한개만 실행)
+		Target target = new Target().withKey("InstanceIds").withValues(instanceIds);
+		//ssm client 제작.
+		//지역을 지정할거면 withRegion사용하면 됨
+		AWSSimpleSystemsManagement ssm = AWSSimpleSystemsManagementClientBuilder.standard().build();
+		//보낼 request를 제작
+		SendCommandRequest commandRequest = new SendCommandRequest()
+				.withTargets(target)
+				.withDocumentName("AWS-RunShellScript")
+				.withParameters(params);
+
+		SendCommandResult commandResult = ssm.sendCommand(commandRequest);
+		//결과를 추적할 때 사용할 id
+		String commandId = commandResult.getCommand().getCommandId();
+
+		//request가 제대로 종료되될때 까지 반복
+		String status;
+		do {
+
+			ListCommandInvocationsRequest request = new ListCommandInvocationsRequest()
+					.withCommandId(commandId)
+					.withDetails(true);
+			//타겟으로 추가한 인스턴스당 한개의 invocation을 받음
+			//1개 밖에 인스턴스가 없기에 get(0)만을 함
+			CommandInvocation invocation = ssm.listCommandInvocations(request).getCommandInvocations().get(0);
+			status = invocation.getStatus();
+			//성공시
+			if(status.equals("Success")) {
+				//실행된 명령의 출력을 받아옴
+				String commandOutput = invocation.getCommandPlugins().get(0).getOutput();
+				System.out.println(commandOutput);
+			}
+			else{
+				//성공하지 못했다면 일정 시간 대기
+				try {
+					TimeUnit.SECONDS.sleep(timeoutInSecs);
+				} catch (InterruptedException e) {
+					//Handle not being able to sleep
+				}
+			}
+		} while(status.equals("Pending") || status.equals("InProgress"));
+
+		if(!status.equals("Success")) {
+			System.out.println(status);
+		}
+	}
+	public static void condor_status() {
+		//Command to be run
+		String ssmCommand = "condor_status";
+		String id="i-05b5bebff775705ce";
+		runShellScrpit(id,ssmCommand);
 	}
 }
