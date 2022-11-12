@@ -38,11 +38,14 @@ import com.amazonaws.services.ec2.model.Filter;
 import com.amazonaws.services.simplesystemsmanagement.AWSSimpleSystemsManagement;
 import com.amazonaws.services.simplesystemsmanagement.AWSSimpleSystemsManagementClientBuilder;
 import com.amazonaws.services.simplesystemsmanagement.model.*;
+import com.jcraft.jsch.Channel;
+import com.jcraft.jsch.JSch;
+import com.jcraft.jsch.Session;
 
 
 public class awsProject {
 
-	static AmazonEC2      ec2;
+	static AmazonEC2 ec2;
 
 	private static void init() throws Exception {
 
@@ -77,11 +80,12 @@ public class awsProject {
 			System.out.println("------------------------------------------------------------");
 			System.out.println("           Amazon AWS Control Panel using SDK               ");
 			System.out.println("------------------------------------------------------------");
-			System.out.println("  1. list instance                2. available zones        ");
-			System.out.println("  3. start instance               4. available regions      ");
-			System.out.println("  5. stop instance                6. create instance        ");
-			System.out.println("  7. reboot instance              8. list images            ");
-			System.out.println("  9. condor status                99. quit                  ");
+			System.out.println("  1.  list instance                2.  available zones        ");
+			System.out.println("  3.  start instance               4.  available regions      ");
+			System.out.println("  5.  stop instance                6.  create instance        ");
+			System.out.println("  7.  reboot instance              8.  list images            ");
+			System.out.println("  9.  condor status                10. connect master        ");
+			System.out.println("  11. run job                      99. quit                  ");
 			System.out.println("------------------------------------------------------------");
 
 			System.out.print("Enter an integer: ");
@@ -152,6 +156,12 @@ public class awsProject {
 
 				case 9:
 					condor_status();
+					break;
+				case 10:
+					connect_master();
+					return;
+				case 11:
+
 					break;
 
 				case 99:
@@ -409,4 +419,48 @@ public class awsProject {
 		String id="i-05b5bebff775705ce";
 		runShellScrpit(id,ssmCommand);
 	}
+
+	public static void connect_master(){//종료가 안되는 중
+		String keyname = "C:/Users/이혁수/Desktop/클라우드/프로젝트/cloud-project.pem";
+		String publicDNS = "ec2-54-236-207-208.compute-1.amazonaws.com";
+		try{
+			JSch jsch=new JSch();
+
+			String user = "ec2-user";
+			String host = publicDNS;
+			int port = 22;
+			String privateKey = keyname;
+
+			jsch.addIdentity(privateKey);
+			System.out.println("identity added ");
+
+			Session session = jsch.getSession(user, host, port);
+			System.out.println("session created.");
+
+			session.setConfig("StrictHostKeyChecking","no");
+			session.setConfig("GSSAPIAuthentication","no");
+			session.setServerAliveInterval(120 * 1000);
+			session.setServerAliveCountMax(1000);
+			session.setConfig("TCPKeepAlive","yes");
+
+			session.connect();
+
+			Channel channel=session.openChannel("shell");
+
+			channel.setInputStream(System.in);
+
+
+			channel.setOutputStream(System.out);
+
+			channel.connect();
+			while(channel.isConnected()){
+				TimeUnit.SECONDS.sleep(5);
+			}
+			channel.disconnect();
+		}
+		catch(Exception e){
+			e.printStackTrace();
+		}
+	}
+	
 }
