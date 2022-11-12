@@ -72,6 +72,7 @@ public class awsProject {
 
 		Scanner menu = new Scanner(System.in);
 		Scanner id_string = new Scanner(System.in);
+		Scanner file_string = new Scanner(System.in);
 		int number = 0;
 
 		while(true)
@@ -86,7 +87,7 @@ public class awsProject {
 			System.out.println("  5.  stop instance                6.  create instance      ");
 			System.out.println("  7.  reboot instance              8.  list images          ");
 			System.out.println("  9.  condor status                10. condor q             ");
-			System.out.println("  11. run job                      12. download result      ");
+			System.out.println("  11. upload file                  12. download file        ");
 			System.out.println("                                   99. quit                 ");
 			System.out.println("------------------------------------------------------------");
 
@@ -101,6 +102,7 @@ public class awsProject {
 
 
 			String instance_id = "";
+			String fileName="";
 
 			switch(number) {
 				case 1:
@@ -163,7 +165,27 @@ public class awsProject {
 					condor_q();
 					break;
 				case 11:
-					run_job();
+					System.out.print("Enter upload file: ");
+					fileName="";
+					if(file_string.hasNext())
+						fileName=file_string.nextLine();
+					if(!fileName.isBlank())
+						upload_file(fileName);
+					break;
+				case 12:
+					System.out.print("Enter store path: ");
+					fileName="";
+					if(file_string.hasNext())
+						fileName=file_string.nextLine();
+					String path=fileName;
+
+					System.out.print("Enter download file: ");
+					fileName="";
+					if(file_string.hasNext())
+						fileName=file_string.nextLine();
+
+					if(!fileName.isBlank())
+						download_file(path,fileName);
 					break;
 
 				case 99:
@@ -429,7 +451,7 @@ public class awsProject {
 		runShellScrpit(masterId,ssmCommand);
 	}
 
-	public static void upload_job(String jobFilePath){
+	public static void upload_file(String jobFilePath){
 		String path="/home/ec2-user";
 
 		try {
@@ -442,22 +464,13 @@ public class awsProject {
 		}
 	}
 
-	public static void run_job(){
-		try {
-			//보안 이유로 불가능
-			runShellScrpit(masterId,"condor_submit /home/ec2-user/test.jds");
-		} catch (Exception e) {
-			throw new RuntimeException(e);
-		}
-	}
 
-	public static void get_job_result(String downloadPath){
+	public static void download_file(String downloadPath,String downloadfile){
 		try {
 			String path="/home/ec2-user";
 
 			Scp scp= new Scp();
-			runShellScrpit(masterId,"cd "+path+"; zip result.zip ./*");
-			scp.download(path,"result.zip",downloadPath);
+			scp.download(path,downloadfile,downloadPath);
 			scp.disconnection();
 		} catch (JSchException e) {
 			throw new RuntimeException(e);
