@@ -7,6 +7,7 @@ package aws;
  * using AWS Java SDK Library
  *
  */
+import java.io.*;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -38,14 +39,14 @@ import com.amazonaws.services.ec2.model.Filter;
 import com.amazonaws.services.simplesystemsmanagement.AWSSimpleSystemsManagement;
 import com.amazonaws.services.simplesystemsmanagement.AWSSimpleSystemsManagementClientBuilder;
 import com.amazonaws.services.simplesystemsmanagement.model.*;
-import com.jcraft.jsch.Channel;
-import com.jcraft.jsch.JSch;
+import com.jcraft.jsch.*;
 import com.jcraft.jsch.Session;
 
 
 public class awsProject {
 
 	static AmazonEC2 ec2;
+	static String masterId="i-05b5bebff775705ce";
 
 	private static void init() throws Exception {
 
@@ -80,12 +81,13 @@ public class awsProject {
 			System.out.println("------------------------------------------------------------");
 			System.out.println("           Amazon AWS Control Panel using SDK               ");
 			System.out.println("------------------------------------------------------------");
-			System.out.println("  1.  list instance                2.  available zones        ");
-			System.out.println("  3.  start instance               4.  available regions      ");
-			System.out.println("  5.  stop instance                6.  create instance        ");
-			System.out.println("  7.  reboot instance              8.  list images            ");
-			System.out.println("  9.  condor status                10. connect master        ");
-			System.out.println("  11. run job                      99. quit                  ");
+			System.out.println("  1.  list instance                2.  available zones      ");
+			System.out.println("  3.  start instance               4.  available regions    ");
+			System.out.println("  5.  stop instance                6.  create instance      ");
+			System.out.println("  7.  reboot instance              8.  list images          ");
+			System.out.println("  9.  condor status                10. condor q             ");
+			System.out.println("  11. run job                      12. download result      ");
+			System.out.println("                                   99. quit                 ");
 			System.out.println("------------------------------------------------------------");
 
 			System.out.print("Enter an integer: ");
@@ -158,10 +160,10 @@ public class awsProject {
 					condor_status();
 					break;
 				case 10:
-					connect_master();
-					return;
+					condor_q();
+					break;
 				case 11:
-
+					run_job();
 					break;
 
 				case 99:
@@ -366,7 +368,7 @@ public class awsProject {
 		Map<String, List<String>> params = new HashMap<String, List<String>>(){{
 			put("commands", new ArrayList<String>(){{ add(command); }});
 		}};
-		int timeoutInSecs = 5;
+		int timeoutInSecs = 3;
 		//명령어를 실행할 대상 지정, 여럿도 가능(현재는 한개만 실행)
 		Target target = new Target().withKey("InstanceIds").withValues(instanceIds);
 		//ssm client 제작.
@@ -416,15 +418,64 @@ public class awsProject {
 	public static void condor_status() {
 		//Command to be run
 		String ssmCommand = "condor_status";
-		String id="i-05b5bebff775705ce";
-		runShellScrpit(id,ssmCommand);
+
+		runShellScrpit(masterId,ssmCommand);
 	}
 
-	public static void connect_master(){//종료가 안되는 중
-		String keyname = "C:/Users/이혁수/Desktop/클라우드/프로젝트/cloud-project.pem";
-		String publicDNS = "ec2-54-236-207-208.compute-1.amazonaws.com";
-		try{
-			JSch jsch=new JSch();
+	public static void condor_q() {
+		//Command to be run
+		String ssmCommand = "condor_q";
+
+		runShellScrpit(masterId,ssmCommand);
+	}
+
+	public static void upload_job(String jobFilePath){
+		String path="/home/ec2-user";
+
+		try {
+			Scp scp = new Scp();
+			File file=new File(jobFilePath);
+			scp.upload(path,file);
+			scp.disconnection();
+		} catch (JSchException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	public static void run_job(){
+		try {
+			//보안 이유로 불가능
+			runShellScrpit(masterId,"condor_submit /home/ec2-user/test.jds");
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	public static void get_job_result(String downloadPath){
+		try {
+			String path="/home/ec2-user";
+
+			Scp scp= new Scp();
+			runShellScrpit(masterId,"cd "+path+"; zip result.zip ./*");
+			scp.download(path,"result.zip",downloadPath);
+			scp.disconnection();
+		} catch (JSchException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	private static class Scp {
+		private static String keyname = "C:/Users/이혁수/Desktop/클라우드/프로젝트/cloud-project.pem";
+		private static String publicDNS = "ec2-54-236-207-208.compute-1.amazonaws.com";
+
+		private ChannelSftp channelSftp;
+		private Channel channel;
+		private JSch jsch;
+		private Session session;
+
+		Scp() throws JSchException {
+
+			jsch=new JSch();
 
 			String user = "ec2-user";
 			String host = publicDNS;
@@ -432,35 +483,105 @@ public class awsProject {
 			String privateKey = keyname;
 
 			jsch.addIdentity(privateKey);
-			System.out.println("identity added ");
 
-			Session session = jsch.getSession(user, host, port);
-			System.out.println("session created.");
+			session = jsch.getSession(user, host, port);
 
 			session.setConfig("StrictHostKeyChecking","no");
-			session.setConfig("GSSAPIAuthentication","no");
-			session.setServerAliveInterval(120 * 1000);
-			session.setServerAliveCountMax(1000);
-			session.setConfig("TCPKeepAlive","yes");
 
 			session.connect();
 
-			Channel channel=session.openChannel("shell");
-
-			channel.setInputStream(System.in);
-
-
-			channel.setOutputStream(System.out);
-
+			/* 채널 방식을 설정한 후 채널을 이용하여 Upload, Download */
+			channel = session.openChannel("sftp");
 			channel.connect();
-			while(channel.isConnected()){
-				TimeUnit.SECONDS.sleep(5);
-			}
-			channel.disconnect();
+
+			channelSftp = (ChannelSftp) channel;
 		}
-		catch(Exception e){
-			e.printStackTrace();
+
+		/**
+		 * @param path : ls 명령어를 입력하려고 하는 path 저장소
+		 * @return
+		 */
+		public Vector<ChannelSftp.LsEntry> getFileList(String path) {
+			Vector<ChannelSftp.LsEntry> list = null;
+			try {
+				channelSftp.cd(path);
+				list = channelSftp.ls(".");
+
+			} catch (Exception e) {
+				System.out.println("Fail");
+			}
+			return list;
+		}
+
+		/**
+		 * @param path : serverVO.path 를 통해 scp로 들어간 서버로 접속하여 upload한다.
+		 * @param file : File file을 객체를 받음
+		 */
+		public void upload(String path, File file) {
+			FileInputStream in = null;
+			try {
+				in = new FileInputStream(file);
+				channelSftp.cd(path);
+				channelSftp.put(in, file.getName());
+			} catch (SftpException e) {
+				e.printStackTrace();
+			} catch (FileNotFoundException e) {
+				e.printStackTrace();
+			} finally {
+				try {
+					if(in != null)
+						in.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+
+
+		/**
+		 * @param path : serverVO.path 를 통해 scp로 들어간 서버로 접속하여 download한다.
+		 * @param fileName : 특정 파일의 이름을 찾아서 다운로드 한다.
+		 * @param userPath
+		 */
+		public void download(String path, String fileName, String userPath) {
+			InputStream in = null;
+			FileOutputStream out = null;
+			try {
+				channelSftp.cd(path);
+				in = channelSftp.get(fileName);
+			} catch (SftpException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+
+			try {
+				String fullpath = userPath + File.separator + fileName;
+				out = new FileOutputStream(new File(fullpath));
+				int i;
+
+				while ((i = in.read()) != -1) {
+					out.write(i);
+				}
+			} catch (IOException e) {
+				e.printStackTrace();
+			} finally {
+				try {
+					out.close();
+					in.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+
+			}
+		}
+
+		/**
+		 * 서버와의 연결을 끊는다.
+		 */
+		public void disconnection() {
+			channelSftp.quit();
+			channel.disconnect();
+			session.disconnect();
 		}
 	}
-	
 }
