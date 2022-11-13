@@ -14,6 +14,9 @@ import java.util.concurrent.TimeUnit;
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
+import com.amazonaws.services.cloudwatch.AmazonCloudWatch;
+import com.amazonaws.services.cloudwatch.AmazonCloudWatchClientBuilder;
+import com.amazonaws.services.cloudwatch.model.*;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import com.amazonaws.services.ec2.model.*;
@@ -69,7 +72,7 @@ public class awsProject {
 			System.out.println("  7.  reboot instance              8.  list images          ");
 			System.out.println("  9.  condor status                10. condor q             ");
 			System.out.println("  11. upload file                  12. download file        ");
-			System.out.println("  13. terminate instance           14.                      ");
+			System.out.println("  13. terminate instance           14. monitoring           ");
 			System.out.println("                                   99. quit                 ");
 			System.out.println("------------------------------------------------------------");
 
@@ -175,6 +178,21 @@ public class awsProject {
 
 					if(!instance_id.isBlank())
 						terminateInstance(instance_id);
+					break;
+				case 14:
+					System.out.print("Enter instance id: ");
+					if(id_string.hasNext())
+						instance_id = id_string.nextLine();
+
+					if(!instance_id.isBlank())
+						showMetricNames(instance_id);
+
+					System.out.print("Enter metric name: ");
+					String metric="";
+					if(file_string.hasNext())
+						metric=file_string.nextLine();
+					if(!metric.isBlank())
+						monitoring(instance_id,metric);
 					break;
 
 				case 99:
@@ -503,7 +521,72 @@ public class awsProject {
 		}
 
 	}
-	
+
+	public static void showMetricNames(String instance_id){
+		final AmazonCloudWatch cw =
+				AmazonCloudWatchClientBuilder.defaultClient();
+
+		ListMetricsRequest request = new ListMetricsRequest()
+				.withDimensions(new DimensionFilter()
+						.withName("InstanceId")
+						.withValue(instance_id));
+		boolean done = false;
+		System.out.println("metrics name");
+		System.out.println("------------------------------------------------------------------------------------------------");
+		while(!done) {
+			ListMetricsResult response = cw.listMetrics(request);
+			int cnt=0;
+			for(Metric metric : response.getMetrics()) {
+				System.out.printf("%-30s",metric.getMetricName());
+				if(++cnt%3==0)
+					System.out.println();
+			}
+			System.out.println("\n------------------------------------------------------------------------------------------------");
+			request.setNextToken(response.getNextToken());
+			if(response.getNextToken() == null) {
+				done = true;
+			}
+		}
+	}
+
+	public static void monitoring(String instance_id,String metric){
+		try{
+
+			final AmazonCloudWatch cw =
+					AmazonCloudWatchClientBuilder.defaultClient();
+
+			Dimension dimension = new Dimension()
+					.withName("InstanceId")
+					.withValue(instance_id);
+
+			long offsetInMilliseconds = 1000 * 60 * 60 * 1 ;
+
+
+
+			GetMetricStatisticsRequest request = new GetMetricStatisticsRequest()
+					.withStartTime(new Date(new Date().getTime() - offsetInMilliseconds)).withNamespace("AWS/EC2")
+					.withPeriod(60 * 60)
+					.withMetricName(metric).withStatistics("Average").withEndTime(new Date())
+					.withDimensions(dimension);
+
+
+			GetMetricStatisticsResult getMetricStatisticsResult = cw.getMetricStatistics(request);
+
+			List<Datapoint> dataPoint = getMetricStatisticsResult.getDatapoints();
+			for (Object aDataPoint : dataPoint) {
+				Datapoint dp = (Datapoint) aDataPoint;
+				System.out.println();
+				System.out.println("Timestamp: "+dp.getTimestamp());
+				System.out.printf("Average: %.2f %s\n",dp.getAverage(),dp.getUnit());
+
+			}
+
+		}catch(AmazonServiceException ase){
+
+			ase.printStackTrace();
+		}
+	}
+
 
 	private static class Scp {
 		private static String keyname = "C:/Users/이혁수/Desktop/클라우드/프로젝트/cloud-project.pem";
