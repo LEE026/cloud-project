@@ -16,26 +16,7 @@ import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
-import com.amazonaws.services.ec2.model.DescribeAvailabilityZonesResult;
-import com.amazonaws.services.ec2.model.DescribeInstancesResult;
-import com.amazonaws.services.ec2.model.Instance;
-import com.amazonaws.services.ec2.model.Reservation;
-import com.amazonaws.services.ec2.model.DescribeInstancesRequest;
-import com.amazonaws.services.ec2.model.DescribeRegionsResult;
-import com.amazonaws.services.ec2.model.Region;
-import com.amazonaws.services.ec2.model.AvailabilityZone;
-import com.amazonaws.services.ec2.model.DryRunSupportedRequest;
-import com.amazonaws.services.ec2.model.StopInstancesRequest;
-import com.amazonaws.services.ec2.model.StartInstancesRequest;
-import com.amazonaws.services.ec2.model.InstanceType;
-import com.amazonaws.services.ec2.model.RunInstancesRequest;
-import com.amazonaws.services.ec2.model.RunInstancesResult;
-import com.amazonaws.services.ec2.model.RebootInstancesRequest;
-import com.amazonaws.services.ec2.model.RebootInstancesResult;
-import com.amazonaws.services.ec2.model.DescribeImagesRequest;
-import com.amazonaws.services.ec2.model.DescribeImagesResult;
-import com.amazonaws.services.ec2.model.Image;
-import com.amazonaws.services.ec2.model.Filter;
+import com.amazonaws.services.ec2.model.*;
 import com.amazonaws.services.simplesystemsmanagement.AWSSimpleSystemsManagement;
 import com.amazonaws.services.simplesystemsmanagement.AWSSimpleSystemsManagementClientBuilder;
 import com.amazonaws.services.simplesystemsmanagement.model.*;
@@ -88,6 +69,7 @@ public class awsProject {
 			System.out.println("  7.  reboot instance              8.  list images          ");
 			System.out.println("  9.  condor status                10. condor q             ");
 			System.out.println("  11. upload file                  12. download file        ");
+			System.out.println("  13. terminate instance           14.                      ");
 			System.out.println("                                   99. quit                 ");
 			System.out.println("------------------------------------------------------------");
 
@@ -173,19 +155,26 @@ public class awsProject {
 						upload_file(fileName);
 					break;
 				case 12:
-					System.out.print("Enter store path: ");
-					fileName="";
-					if(file_string.hasNext())
-						fileName=file_string.nextLine();
-					String path=fileName;
-
+					show_file();
 					System.out.print("Enter download file: ");
 					fileName="";
 					if(file_string.hasNext())
 						fileName=file_string.nextLine();
-
+					System.out.print("Enter store path: ");
+					String path="";
+					if(file_string.hasNext())
+						path=file_string.nextLine();
 					if(!fileName.isBlank())
 						download_file(path,fileName);
+					break;
+
+				case 13:
+					System.out.print("Enter instance id: ");
+					if(id_string.hasNext())
+						instance_id = id_string.nextLine();
+
+					if(!instance_id.isBlank())
+						terminateInstance(instance_id);
 					break;
 
 				case 99:
@@ -476,6 +465,45 @@ public class awsProject {
 			throw new RuntimeException(e);
 		}
 	}
+	public static void show_file(){
+		try {
+			String path="/home/ec2-user";
+
+			Scp scp= new Scp();
+			for(ChannelSftp.LsEntry i:scp.getFileList(path)){
+				System.out.println(i.toString());
+			}
+			scp.disconnection();
+		} catch (JSchException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	public static void terminateInstance(String instance_id) {
+		final AmazonEC2 ec2 = AmazonEC2ClientBuilder.defaultClient();
+
+		DryRunSupportedRequest<TerminateInstancesRequest> dry_request =
+				() -> {
+					TerminateInstancesRequest request = new TerminateInstancesRequest()
+							.withInstanceIds(instance_id);
+
+					return request.getDryRunRequest();
+				};
+
+		try {
+			TerminateInstancesRequest request = new TerminateInstancesRequest()
+					.withInstanceIds(instance_id);
+
+			ec2.terminateInstances(request);
+			System.out.printf("Successfully terminate instance %s\n", instance_id);
+
+		} catch(Exception e)
+		{
+			System.out.println("Exception: "+e.toString());
+		}
+
+	}
+	
 
 	private static class Scp {
 		private static String keyname = "C:/Users/이혁수/Desktop/클라우드/프로젝트/cloud-project.pem";
