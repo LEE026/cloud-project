@@ -73,6 +73,7 @@ public class awsProject {
 			System.out.println("  9.  condor status                10. condor q             ");
 			System.out.println("  11. upload file                  12. download file        ");
 			System.out.println("  13. terminate instance           14. monitoring           ");
+			System.out.println("  15. all start instance           16. all stop instance    ");
 			System.out.println("                                   99. quit                 ");
 			System.out.println("------------------------------------------------------------");
 
@@ -193,6 +194,12 @@ public class awsProject {
 						metric=file_string.nextLine();
 					if(!metric.isBlank())
 						monitoring(instance_id,metric);
+					break;
+				case 15:
+					startAllInstance();
+					break;
+				case 16:
+					stopAllInstance();
 					break;
 
 				case 99:
@@ -586,6 +593,59 @@ public class awsProject {
 			ase.printStackTrace();
 		}
 	}
+
+	public static void startAllInstance() {
+
+		System.out.println("Listing instances....");
+		boolean done = false;
+
+		DescribeInstancesRequest request = new DescribeInstancesRequest();
+
+		while(!done) {
+			DescribeInstancesResult response = ec2.describeInstances(request);
+
+			for(Reservation reservation : response.getReservations()) {
+				for(Instance instance : reservation.getInstances()) {
+					if(instance.getState().getName().equals("stopped")) {
+						startInstance(instance.getInstanceId());
+					}
+				}
+			}
+
+			request.setNextToken(response.getNextToken());
+
+			if(response.getNextToken() == null) {
+				done = true;
+			}
+		}
+	}
+
+	public static void stopAllInstance() {
+
+		System.out.println("Listing instances....");
+		boolean done = false;
+
+		DescribeInstancesRequest request = new DescribeInstancesRequest();
+
+		while(!done) {
+			DescribeInstancesResult response = ec2.describeInstances(request);
+
+			for(Reservation reservation : response.getReservations()) {
+				for(Instance instance : reservation.getInstances()) {
+					if(instance.getState().getName().equals("running")) {
+						stopInstance(instance.getInstanceId());
+					}
+				}
+			}
+
+			request.setNextToken(response.getNextToken());
+
+			if(response.getNextToken() == null) {
+				done = true;
+			}
+		}
+	}
+
 
 
 	private static class Scp {
