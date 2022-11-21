@@ -292,7 +292,7 @@ public class awsProject {
 
 		ec2.startInstances(request);
 
-		System.out.printf("Successfully started instance %s", instance_id);
+		System.out.printf("Successfully started instance %s\n", instance_id);
 	}
 
 
@@ -650,7 +650,7 @@ public class awsProject {
 
 	private static class Scp {
 		private static String keyname = "C:/Users/이혁수/Desktop/클라우드/프로젝트/cloud-project.pem";
-		private static String publicDNS = "ec2-54-236-207-208.compute-1.amazonaws.com";
+		private static String publicDNS = "ec2-34-224-88-14.compute-1.amazonaws.com";
 
 		private ChannelSftp channelSftp;
 		private Channel channel;
